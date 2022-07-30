@@ -1,29 +1,6 @@
 import metaworld
 import random
-
-ml10 = metaworld.ML10() # Construct the benchmark, sampling tasks
-
-training_envs = []
-for name, env_cls in ml10.train_classes.items():
-  env = env_cls()
-  task = random.choice([task for task in ml10.train_tasks
-                        if task.env_name == name])
-  env.set_task(task)
-  training_envs.append(env)
-
-for env in training_envs:
-  obs = env.reset()  # Reset environment
-  a = env.action_space.sample()  # Sample an action
-  obs, reward, done, info = env.step(a)  # Step the environoment with the sampled random action
-
-envs=training_envs
-
 import numpy as np
-import random
-from operator import mul
-from functools import reduce
-import numpy as np
-import random
 from operator import mul
 from functools import reduce
 import torch
@@ -130,14 +107,26 @@ class ACModel(nn.Module):
         super(ACModel, self).__init__()
 
         self.actor = torch.nn.ModuleList ( [ nn.Sequential(
-            nn.Linear(12, 64),
-            nn.Tanh(),
-            nn.Linear(64,4)
+            nn.Linear(12, 128),
+            nn.ReLU(),
+            nn.Linear(128, 64),
+            nn.ReLU(),
+            nn.Linear(64, 32),
+            nn.ReLU(), 
+            nn.Linear(32, 16),
+            nn.ReLU(),             
+            nn.Linear(16,4)
         ) for i in range(1) ] )
         self.value_head =  torch.nn.ModuleList ( [nn.Sequential(
-            nn.Linear(12, 64),
-            nn.Tanh(),
-            nn.Linear(64,1)
+            nn.Linear(12, 128),
+            nn.ReLU(),
+            nn.Linear(128, 64),
+            nn.ReLU(),
+            nn.Linear(64, 32),
+            nn.ReLU(), 
+            nn.Linear(32, 16),
+            nn.ReLU(),             
+            nn.Linear(16, 1)
         ) for i in range(1) ] )
 
         self.saved_actions = [[] for i in range(1)] 
@@ -228,9 +217,20 @@ def finish_episode( tasks , alpha , beta , gamma):
     if rnd!=0:
         pc_grad_update(grad_list)
     #Clean memory
+    
+ml10 = metaworld.MT10() # Construct the benchmark, sampling tasks
+envs = []
+for name, env_cls in ml10.train_classes.items():
+  env = env_cls()
+  task = random.choice([task for task in ml10.train_tasks
+                        if task.env_name  ==   name])
+  env.set_task(task)
+  envs.append(env)
 
-agents = [REINFORCE() for i in range(len(envs))]
-optimizer =[ optim.Adam(agents[i].model.parameters(), lr=3e-2) for i in range(len(envs))]
+for env in envs:
+  obs = env.reset()  # Reset environment
+  a = env.action_space.sample()  # Sample an action
+  obs, reward, done, info = env.step(a)  # Step the environoment with the sampled random action      
 
 rnd=0
 batch_size=128
@@ -243,9 +243,10 @@ max_num_steps_per_episode=10000
 learning_rate=0.001 
 rewardsRec=[[] for _ in range(len(envs))]
 tasks=len(envs)
+agents = [REINFORCE() for i in range(len(envs))]
+optimizer =[ optim.Adam(agents[i].model.parameters(), lr=3e-2) for i in range(len(envs))]
 
 for rnd in range(10000):
-    
     for env_id in range(len(envs)):
         rewardRec=[]
         for i_episode in range(1):
