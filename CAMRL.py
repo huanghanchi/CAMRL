@@ -1,36 +1,15 @@
 import os
-os.environ['LD_LIBRARY_PATH']='/root/.mujoco/mujoco210/bin:/usr/lib/nvidia'
-
 import sys
-sys.path.insert(0,'./metaworld-master/')
+from scipy.stats import rankdata
 import metaworld
-import random
-
-ml10 = metaworld.MT10() # Construct the benchmark, sampling tasks
-
-training_envs = []
-for name, env_cls in ml10.train_classes.items():
-  env = env_cls()
-  task = random.choice([task for task in ml10.train_tasks
-                        if task.env_name == name])
-  env.set_task(task)
-  training_envs.append(env)
-
-for env in training_envs:
-  obs = env.reset()  # Reset environment
-  a = env.action_space.sample()  # Sample an action
-  obs, reward, done, info = env.step(a)  # Step the environoment with the sampled random action
-envs=training_envs
-
-import sys
-sys.path.append("./")
-import metaworld
-import os
+from metaworld.envs.mujoco.sawyer_xyz import *
 import random
 import time
 import os.path as osp
 import numpy as np
 import torch
+from torch.autograd import Variable
+import torch.nn.utils as utils
 from torchrl.utils import get_params
 from torchrl.env import get_env
 from torchrl.utils import Logger
@@ -41,22 +20,30 @@ from torchrl.algo import SAC
 from torchrl.algo import TwinSAC
 from torchrl.algo import TwinSACQ
 from torchrl.algo import MTSAC
+import torchrl.algo.utils as atu
 from torchrl.collector.para import ParallelCollector
 from torchrl.collector.para import AsyncParallelCollector
 from torchrl.collector.para.mt import SingleTaskParallelCollectorBase
 from torchrl.replay_buffers import BaseReplayBuffer
 from torchrl.replay_buffers.shared import SharedBaseReplayBuffer
 from torchrl.replay_buffers.shared import AsyncSharedReplayBuffer
+from torchrl.env.continuous_wrapper import *
+from torchrl.env.get_env import wrap_continuous_env
 import gym
 from gym import Wrapper
 from gym.spaces import Box
-import numpy as np
-from metaworld.envs.mujoco.sawyer_xyz import *
-#from metaworld.core.serializable import Serializable
-import sys
+import copy
+from collections import deque
+import matplotlib.pyplot as plt
+import constopt
+from constopt.constraints import LinfBall
+from constopt.stochastic import PGD, PGDMadry, FrankWolfe, MomentumFrankWolfe
+
+sys.path.insert(0,r'./constopt-pytorch/')
+os.environ['LD_LIBRARY_PATH']='/root/.mujoco/mujoco210/bin:/usr/lib/nvidia'
+sys.path.insert(0,'./metaworld-master/')
+sys.path.append("./")
 sys.path.append("../..")
-from torchrl.env.continuous_wrapper import *
-from torchrl.env.get_env import wrap_continuous_env
 
 class SingleWrapper(Wrapper):
     def __init__(self, env):
@@ -64,6 +51,7 @@ class SingleWrapper(Wrapper):
         self.action_space = env.action_space
         self.observation_space = env.observation_space
         self.train_mode = True
+        
     def reset(self):
         return self._env.reset()
 
@@ -130,95 +118,7 @@ class Normalizer():
             (torch.Tensor(np.sqrt(self._var) + 1e-4).to(raw.device)),
             -self.clip, self.clip)
 
-text="""{
-    "env_name" : "mt10",
-    "env":{
-        "reward_scale":1,
-        "obs_norm":false
-    },
-    "meta_env":{
-        "obs_type": "with_goal_and_id"
-    },
-    "replay_buffer":{
-        "size": 1e6
-    },
-    "net":{ 
-        "hidden_shapes": [64],
-        "append_hidden_shapes":[]
-    },
-    "general_setting": {
-        "discount" : 0.99,
-        "pretrain_epochs" : 20,
-        "num_epochs" : 7500,
-        "epoch_frames" : 200,
-        "max_episode_frames" : 200,
-
-        "batch_size" : 1280,
-        "min_pool" : 10000,
-
-        "target_hard_update_period" : 1000,
-        "use_soft_update" : true,
-        "tau" : 0.005,
-        "opt_times" : 200,
-
-        "eval_episodes" : 3
-    },
-    "sac":{
-    }
-}"""
-
-!mkdir config
-with open('config/sac_ant.json','w') as f:
-    f.write(text)
-    
-class parser:
-    def __init__(self): 
-        self.config='config/sac_ant.json'
-        self.id='mt10'
-        self.worker_nums=10
-        self.eval_worker_nums=10
-        self.seed=20
-        self.vec_env_nums=1
-        self.save_dir='./save/sac_ant'
-        self.log_dir='./log/sac_ant'
-        self.no_cuda=True
-        self.overwrite=True
-        self.device='cpu'
-        self.cuda=False
-                
-args=parser()
-params = get_params(args.config)
-
-device = torch.device(
-    "cuda:{}".format(args.device) if args.cuda else "cpu")
-
-normalizer=Normalizer(env.observation_space.shape)
-env.seed(args.seed)
-torch.manual_seed(args.seed)
-np.random.seed(args.seed)
-random.seed(args.seed)
-if args.cuda:
-    torch.cuda.manual_seed_all(args.seed)
-    torch.backends.cudnn.benchmark = False
-    torch.backends.cudnn.deterministic = True
-
-buffer_param = params['replay_buffer']
-
-experiment_name = os.path.split(
-    os.path.splitext(args.config)[0])[-1] if args.id is None \
-    else args.id
-logger = Logger(
-    experiment_name, params['env_name'], args.seed, params, args.log_dir)
-
-import copy
-import time
-from collections import deque
-import numpy as np
-import torchrl.algo.utils as atu
-import gym
-import os.path as osp
-
-class RLAlgo():
+ class RLAlgo():
     """
     Base RL Algorithm Framework
     """
@@ -396,9 +296,6 @@ class RLAlgo():
         for net in self.networks:
             net.to(device)
 
-import time
-import math
-
 class OffRLAlgo(RLAlgo):
     """
     Base RL Algorithm Framework
@@ -476,10 +373,6 @@ class OffRLAlgo(RLAlgo):
         self.pretrain_frames = total_frames
 
         self.logger.log("Finished Pretrain")
-
-import copy
-import torch.optim as optim
-from torch import nn as nn
 
 class SAC(OffRLAlgo):
     """
@@ -702,6 +595,92 @@ class SAC(OffRLAlgo):
             ( self.vf, self.target_vf )
         ]
 
+ class parser:
+    def __init__(self): 
+        self.config='config/sac_ant.json'
+        self.id='mt10'
+        self.worker_nums=10
+        self.eval_worker_nums=10
+        self.seed=20
+        self.vec_env_nums=1
+        self.save_dir='./save/sac_ant'
+        self.log_dir='./log/sac_ant'
+        self.no_cuda=True
+        self.overwrite=True
+        self.device='cpu'
+        self.cuda=False     
+        
+text="""{
+    "env_name" : "mt10",
+    "env":{
+        "reward_scale":1,
+        "obs_norm":false
+    },
+    "meta_env":{
+        "obs_type": "with_goal_and_id"
+    },
+    "replay_buffer":{
+        "size": 1e6
+    },
+    "net":{ 
+        "hidden_shapes": [128,64,32,16],
+        "append_hidden_shapes":[]
+    },
+    "general_setting": {
+        "discount" : 0.99,
+        "pretrain_epochs" : 20,
+        "num_epochs" : 7500,
+        "epoch_frames" : 200,
+        "max_episode_frames" : 200,
+
+        "batch_size" : 1280,
+        "min_pool" : 10000,
+
+        "target_hard_update_period" : 1000,
+        "use_soft_update" : true,
+        "tau" : 0.005,
+        "opt_times" : 200,
+
+        "eval_episodes" : 3
+    },
+    "sac":{
+    }
+}"""
+
+ml10 = metaworld.MT10() # Construct the benchmark, sampling tasks
+envs = []
+for name, env_cls in ml10.train_classes.items():
+  env = env_cls()
+  task = random.choice([task for task in ml10.train_tasks
+                        if task.env_name  ==   name])
+  env.set_task(task)
+  envs.append(env)
+
+!mkdir config
+with open('config/sac_ant.json','w') as f:
+    f.write(text)
+                  
+args=parser()
+params = get_params(args.config)
+device = torch.device(
+    "cuda:{}".format(args.device) if args.cuda else "cpu")
+if args.cuda:
+    torch.cuda.manual_seed_all(args.seed)
+    torch.backends.cudnn.benchmark = False
+    torch.backends.cudnn.deterministic = True
+env.seed(args.seed)
+torch.manual_seed(args.seed)
+np.random.seed(args.seed)
+random.seed(args.seed)
+
+normalizer=Normalizer(env.observation_space.shape)      
+buffer_param = params['replay_buffer']
+experiment_name = os.path.split(
+    os.path.splitext(args.config)[0])[-1] if args.id is None \
+    else args.id
+logger = Logger(
+    experiment_name, params['env_name'], args.seed, params, args.log_dir)
+
 pfs=[]
 qf1s=[]
 vfs=[]
@@ -721,10 +700,7 @@ for index in range(len(envs)):
     #    time_limit_filter=buffer_param['time_limit_filter']
     )
     params['general_setting']['replay_buffer'] = replay_buffer
-
-
     params['general_setting']['device'] = device
-
     params['net']['base_type'] = networks.MLPBase
     params['net']['activation_func'] = torch.nn.ReLU
     
@@ -761,25 +737,9 @@ for index in range(len(envs)):
             **params["sac"],
             **params["general_setting"]
         )
-    agents.append(agent)
+    agents.append(agent)     
 
-#for index in range(len(envs)):
- #   agents[index].pf.load_state_dict(torch.load('/root/metaworld-master/newsoftmodule_24/model'+str(index)+'/model_pf_best.pth'))
-  #  agents[index].qf.load_state_dict(torch.load('/root/metaworld-master/newsoftmodule_24/model'+str(index)+'/model_qf_best.pth'))
-   # agents[index].vf.load_state_dict(torch.load('/root/metaworld-master/newsoftmodule_24/model'+str(index)+'/model_vf_best.pth'))
-
-import matplotlib.pyplot as plt
-import sys
-sys.path.insert(0,r'./constopt-pytorch/')
-import constopt
-from constopt.constraints import LinfBall
-from constopt.stochastic import PGD, PGDMadry, FrankWolfe, MomentumFrankWolfe
-import torch
-from torch.autograd import Variable
-import torch.nn.utils as utils
-from scipy.stats import rankdata
-
-#differentiable ranking loss
+# differentiable ranking loss
 def pss(x,points):
     def pss0(x,i):
         return torch.tanh(200*torch.tensor(x-i))/2+0.5
