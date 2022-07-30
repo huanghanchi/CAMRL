@@ -23,13 +23,13 @@ from collections import deque
 sys.path.insert(0,r'constopt-pytorch/')
 
 class BaseAgent(ABC):
-
     def __init__(self, env, test_env, log_dir, num_steps=100000, batch_size=16,
                  memory_size=1000000, gamma=0.99, multi_step=1,
                  target_entropy_ratio=0.98, start_steps=20000,
                  update_interval=4, target_update_interval=8000,
                  use_per=False, num_eval_steps=1000, max_episode_steps=27000,
                  log_interval=10, eval_interval=1000, cuda=True, seed=0):
+        
         super().__init__()
         self.env = env
         self.test_env = test_env
@@ -306,17 +306,35 @@ class QNetwork(BaseNetwork):
         
         if not dueling_net:
             self.head = nn.Sequential(
-                nn.Linear(140,16),
-                nn.Tanh(),
+                nn.Linear(140,128),
+                nn.ReLU(),
+                nn.Linear(128,64),
+                nn.ReLU(),            
+                nn.Linear(64,32),
+                nn.ReLU(),
+                nn.Linear(32,16),
+                nn.ReLU(), 
                 nn.Linear(16, envs[0].action_space.n))
         else:
             self.a_head = nn.Sequential(
-                nn.Linear(140,16),
-                nn.Tanh(),
+                nn.Linear(140,128),
+                nn.ReLU(),
+                nn.Linear(128,64),
+                nn.ReLU(),            
+                nn.Linear(64,32),
+                nn.ReLU(),
+                nn.Linear(32,16),
+                nn.ReLU(), 
                 nn.Linear(16, envs[0].action_space.n))
             self.v_head = nn.Sequential(
-                nn.Linear(140,16),
-                nn.Tanh(),
+                nn.Linear(140,128),
+                nn.ReLU(),
+                nn.Linear(128,64),
+                nn.ReLU(),            
+                nn.Linear(64,32),
+                nn.ReLU(),
+                nn.Linear(32,16),
+                nn.ReLU(), 
                 nn.Linear(16, 1))
 
         self.shared = shared
