@@ -48,20 +48,6 @@ sys.path.append("./")
 sys.path.append("../..")
 sys.path.insert(0,r'./constopt-pytorch/')
 
-ml10 = metaworld.MT10() # Construct the benchmark, sampling tasks
-envs = []
-for name, env_cls in ml10.train_classes.items():
-  env = env_cls()
-  task = random.choice([task for task in ml10.train_tasks
-                        if task.env_name  ==   name])
-  env.set_task(task)
-  envs.append(env)
-
-for env in envs:
-  obs = env.reset()  # Reset environment
-  a = env.action_space.sample()  # Sample an action
-  obs, reward, done, info = env.step(a)  # Step the environoment with the sampled random action
-
 class SingleWrapper(Wrapper):
     def __init__(self, env):
         self._env = env
@@ -612,6 +598,34 @@ class SAC(OffRLAlgo):
             ( self.vf, self.target_vf )
         ]
 
+class parser:
+    def __init__(self): 
+        self.config = 'config/sac_ant.json'
+        self.id = 'mt10'
+        self.worker_nums = 10
+        self.eval_worker_nums = 10
+        self.seed = 20
+        self.vec_env_nums = 1
+        self.save_dir = './save/sac_ant'
+        self.log_dir = './log/sac_ant'
+        self.no_cuda = True
+        self.overwrite = True
+        self.device = 'cpu'
+        self.cuda = False
+     
+ml10 = metaworld.MT10() # Construct the benchmark, sampling tasks
+envs = []
+for name, env_cls in ml10.train_classes.items():
+  env = env_cls()
+  task = random.choice([task for task in ml10.train_tasks
+                        if task.env_name  ==   name])
+  env.set_task(task)
+  envs.append(env)
+
+for env in envs:
+  obs = env.reset()  # Reset environment
+  a = env.action_space.sample()  # Sample an action
+  obs, reward, done, info = env.step(a)  # Step the environoment with the sampled random action      
 
 text = """{
     "env_name" : "mt10",
@@ -653,21 +667,6 @@ text = """{
 !mkdir config
 with open('config/sac_ant.json','w') as f:
     f.write(text)
-    
-class parser:
-    def __init__(self): 
-        self.config = 'config/sac_ant.json'
-        self.id = 'mt10'
-        self.worker_nums = 10
-        self.eval_worker_nums = 10
-        self.seed = 20
-        self.vec_env_nums = 1
-        self.save_dir = './save/sac_ant'
-        self.log_dir = './log/sac_ant'
-        self.no_cuda = True
-        self.overwrite = True
-        self.device = 'cpu'
-        self.cuda = False
                 
 args = parser()
 params = get_params(args.config)
@@ -694,6 +693,7 @@ experiment_name = os.path.split(
     else args.id
 logger = Logger(
     experiment_name, params['env_name'], args.seed, params, args.log_dir)
+
 for index in range(len(envs)):
     print(index)
     env = SingleWrapper(envs[index])
@@ -816,12 +816,14 @@ def lossw(currindex,t,rloss,w,B,mu = 0.2, lamb = [0.01,0.01,0.01], U = [13], pi 
 # FrankWolfe
 OPTIMIZER_CLASSES = [FrankWolfe]# [PGD, PGDMadry, FrankWolfe, MomentumFrankWolfe]
 radius = 0.05
+
 def setup_problem(make_nonconvex = False):
     radius2 = radius
     loss_func = lossb
     constraint = LinfBall(radius2)
 
     return loss_func, constraint
+  
 def optimize(loss_func, constraint, optimizer_class, iterations = 100):
     for i in range(len(envs)):
         if i! = t:
