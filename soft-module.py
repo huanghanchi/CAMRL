@@ -142,7 +142,6 @@ class RLAlgo():
         save_interval = 100,
         save_dir = None
     ):
-
         self.env = env
         self.total_frames = 0
         self.continuous = isinstance(self.env.action_space, gym.spaces.Box)
@@ -168,8 +167,6 @@ class RLAlgo():
 
         # Logger & relevant setting
         self.logger = logger
-
-        
         self.episode_rewards = deque(maxlen = 30)
         self.training_episode_rewards = deque(maxlen = 30)
         self.eval_episodes = eval_episodes
@@ -201,10 +198,6 @@ class RLAlgo():
 
     def train(self,epoch):
         if epoch =  = 1:
-        #    self.pf.load_state_dict(torch.load('/root/metaworld-master/newsoftmodule_24/model' + str(index) + '/model_pf_best.pth'))
-         #   self.qf.load_state_dict(torch.load('/root/metaworld-master/newsoftmodule_24/model' + str(index) + '/model_qf_best.pth'))
-          #  self.vf.load_state_dict(torch.load('/root/metaworld-master/newsoftmodule_24/model' + str(index) + '/model_vf_best.pth'))
-    
             self.pretrain()
             self.total_frames = 0
             if hasattr(self, "pretrain_frames"):
@@ -228,7 +221,6 @@ class RLAlgo():
         train_time = time.time() - train_start_time
 
         finish_epoch_info = self.finish_epoch()
-
         eval_start_time = time.time()
         eval_infos = self.collector.eval_one_epoch()
         eval_time = time.time() - eval_start_time
@@ -347,6 +339,7 @@ class OffRLAlgo(RLAlgo):
             loss.append(infos['Training/policy_loss'])
             self.logger.add_update_info( infos )
         return np.mean(loss)
+    
     def pretrain(self):
         total_frames = 0
         self.pretrain_epochs * self.collector.worker_nums * self.epoch_frames
