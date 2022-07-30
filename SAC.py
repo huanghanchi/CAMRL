@@ -183,7 +183,7 @@ class BaseAgent(ABC):
             print('Env: ',index,'rnd: ',rnd,'Episode: ',self.episodes,'Return: ',episode_return)
 
     def learn(self,inner_rnd):
-        assert hasattr(self, 'q1_optim') and hasattr(self, 'q2_optim') and            hasattr(self, 'policy_optim') and hasattr(self, 'alpha_optim')
+        assert hasattr(self, 'q1_optim') and hasattr(self, 'q2_optim') and hasattr(self, 'policy_optim') and hasattr(self, 'alpha_optim')
 
         self.learning_steps += 1
 
@@ -360,8 +360,14 @@ class CateoricalPolicy(BaseNetwork):
         )
                 
         self.head = nn.Sequential(
-            nn.Linear(140,16),
-            nn.Tanh(),
+            nn.Linear(140,128),
+            nn.ReLU(),
+            nn.Linear(128,64),
+            nn.ReLU(),            
+            nn.Linear(64,32),
+            nn.ReLU(),
+            nn.Linear(32,16),
+            nn.ReLU(),               
             nn.Linear(16, envs[0].action_space.n))
 
         self.shared = shared
