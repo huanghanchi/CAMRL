@@ -61,7 +61,6 @@ def select_action(state, tasks,index):
     actions = []
     for i in range(tasks):
         model.saved_actions[i].append(SavedAction(probs[i].log().dot(probs[i]), state_value))
-
     return probs, state_value
 
 def finish_episode( tasks , alpha , beta , gamma ):
@@ -86,11 +85,9 @@ def finish_episode( tasks , alpha , beta , gamma ):
         reward = r - value.data[0]
         policy_losses.append(-log_prob * reward)
         value_losses.append(F.smooth_l1_loss(value, Variable(torch.Tensor([r]))))
-
-
+        
     optimizer.zero_grad()
-    loss = torch.stack(policy_losses).sum() + torch.stack(value_losses).sum()
-    
+    loss = torch.stack(policy_losses).sum() + torch.stack(value_losses).sum()    
     loss.backward()
     optimizer.step()
 
@@ -109,11 +106,6 @@ for name, env_cls in ml10.train_classes.items():
                         if task.env_name  ==   name])
   env.set_task(task)
   envs.append(env)
-
-for env in envs:
-  obs = env.reset()  # Reset environment
-  a = env.action_space.sample()  # Sample an action
-  obs, reward, done, info = env.step(a)  # Step the environoment with the sampled random action
   
 file_name="Single"
 batch_size=128
@@ -136,14 +128,12 @@ for rnd in range(10000):
           for t in range(200):  # Don't infinite loop while learning
               probs, state_value = select_action(state, tasks,index )
               state, reward, done, _ = env.step(probs[index].detach().numpy())
-              if is_plot:
-                  env.render()
               model.rewards[index].append(reward)
               total_reward += reward
               if done:
                   break
           print(rnd,index,total_reward)
           rewardsRec[index].append(total_reward)
-          finish_episode( tasks , alpha , beta, gamma )
+          finish_episode(tasks , alpha , beta, gamma )
     np.save('mt10_single_rewardsRec.npy',rewardsRec)
     torch.save(model.state_dict(), 'mt10_single_params.pkl')
