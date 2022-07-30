@@ -135,7 +135,6 @@ class ACModel(nn.Module):
 
     def forward(self, x):
         tmp=[]
-        
         for i in range(1) :
             tmp.append( F.softmax(self.actor[i](x)-self.actor[i](x).max()))
         state_values = self.value_head[0](x)
