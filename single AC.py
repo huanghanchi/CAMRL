@@ -18,16 +18,27 @@ class Single(nn.Module):
     def __init__(self, tasks = len(envs) ):
 
         super(Single, self).__init__()
-
         self.actor = torch.nn.ModuleList ( [ nn.Sequential(
-            nn.Linear(12, 64),
-            nn.Tanh(),
-            nn.Linear(64,4)
+            nn.Linear(12, 128),
+            nn.ReLU(),
+            nn.Linear(128, 64),
+            nn.ReLU(),
+            nn.Linear(64, 32),
+            nn.ReLU(), 
+            nn.Linear(32, 16),
+            nn.ReLU(),             
+            nn.Linear(16,4)
         ) for i in range(tasks) ] )
         self.value_head =  torch.nn.ModuleList ( [nn.Sequential(
-            nn.Linear(12, 64),
-            nn.Tanh(),
-            nn.Linear(64,1)
+            nn.Linear(12, 128),
+            nn.ReLU(),
+            nn.Linear(128, 64),
+            nn.ReLU(),
+            nn.Linear(64, 32),
+            nn.ReLU(), 
+            nn.Linear(32, 16),
+            nn.ReLU(),             
+            nn.Linear(16, 1)
         ) for i in range(tasks) ] )
 
         self.saved_actions = [[] for i in range(tasks)] 
