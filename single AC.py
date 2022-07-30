@@ -1,23 +1,5 @@
 import metaworld
 import random
-
-ml10 = metaworld.MT10() # Construct the benchmark, sampling tasks
-
-training_envs = []
-for name, env_cls in ml10.train_classes.items():
-  env = env_cls()
-  task = random.choice([task for task in ml10.train_tasks
-                        if task.env_name == name])
-  env.set_task(task)
-  training_envs.append(env)
-
-for env in training_envs:
-  obs = env.reset()  # Reset environment
-  a = env.action_space.sample()  # Sample an action
-  obs, reward, done, info = env.step(a)  # Step the environoment with the sampled random action
-
-envs=training_envs
-
 import argparse
 import gym
 import numpy as np
@@ -30,10 +12,6 @@ import torch.optim as optim
 from torch.autograd import Variable
 from torch.distributions import Categorical
 import torch_ac
-
-torch.manual_seed(1337)
-
-SavedAction = namedtuple('SavedAction', ['log_prob', 'value'])
 
 class Single(nn.Module):
 
@@ -105,14 +83,27 @@ def finish_episode( tasks , alpha , beta , gamma ):
     loss.backward()
     optimizer.step()
 
-    #Clean memory
+    # Clean memory
     for i in range(tasks):
         del model.rewards[i][:]
         del model.saved_actions[i][:]
 
-model = Single( )
-optimizer = optim.Adam(model.parameters(), lr=3e-2)
+torch.manual_seed(1337)
+SavedAction = namedtuple('SavedAction', ['log_prob', 'value'])
+ml10 = metaworld.MT10() # Construct the benchmark, sampling tasks
+envs = []
+for name, env_cls in ml10.train_classes.items():
+  env = env_cls()
+  task = random.choice([task for task in ml10.train_tasks
+                        if task.env_name  ==   name])
+  env.set_task(task)
+  envs.append(env)
 
+for env in envs:
+  obs = env.reset()  # Reset environment
+  a = env.action_space.sample()  # Sample an action
+  obs, reward, done, info = env.step(a)  # Step the environoment with the sampled random action
+  
 file_name="Single"
 batch_size=128
 alpha = 0.5
@@ -122,27 +113,26 @@ is_plot=False
 num_episodes=500
 max_num_steps_per_episode=10000
 learning_rate=0.001 
-
-#Run each one of the policies for the different environments
-#update the policies
-
 tasks = len(envs)
 rewardsRec=[[] for _ in range(len(envs))]
+model = Single( )
+optimizer = optim.Adam(model.parameters(), lr=3e-2)
+
 for rnd in range(10000):
     for index,env in enumerate(envs): 
-            total_reward = 0
-            state = env.reset()
-            for t in range(200):  # Don't infinite loop while learning
-                probs, state_value = select_action(state, tasks,index )
-                state, reward, done, _ = env.step(probs[index].detach().numpy())
-                if is_plot:
-                    env.render()
-                model.rewards[index].append(reward)
-                total_reward += reward
-                if done:
-                    break
-            print(rnd,index,total_reward)
-            rewardsRec[index].append(total_reward)
-            finish_episode( tasks , alpha , beta, gamma )
+          total_reward = 0
+          state = env.reset()
+          for t in range(200):  # Don't infinite loop while learning
+              probs, state_value = select_action(state, tasks,index )
+              state, reward, done, _ = env.step(probs[index].detach().numpy())
+              if is_plot:
+                  env.render()
+              model.rewards[index].append(reward)
+              total_reward += reward
+              if done:
+                  break
+          print(rnd,index,total_reward)
+          rewardsRec[index].append(total_reward)
+          finish_episode( tasks , alpha , beta, gamma )
     np.save('mt10_single_rewardsRec.npy',rewardsRec)
     torch.save(model.state_dict(), 'mt10_single_params.pkl')
