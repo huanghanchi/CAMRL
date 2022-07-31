@@ -16,27 +16,26 @@ import torch_ac
 class Single(nn.Module):
 
     def __init__(self, tasks = len(envs) ):
-
         super(Single, self).__init__()
         self.actor = torch.nn.ModuleList ( [ nn.Sequential(
-            nn.Linear(12, 128),
-            nn.ReLU(),
-            nn.Linear(128, 64),
-            nn.ReLU(),
-            nn.Linear(64, 32),
+            nn.Linear(12, 128), 
             nn.ReLU(), 
-            nn.Linear(32, 16),
+            nn.Linear(128, 64), 
+            nn.ReLU(), 
+            nn.Linear(64, 32), 
+            nn.ReLU(), 
+            nn.Linear(32, 16), 
             nn.ReLU(),             
-            nn.Linear(16,4)
+            nn.Linear(16, 4)
         ) for i in range(tasks) ] )
-        self.value_head =  torch.nn.ModuleList ( [nn.Sequential(
-            nn.Linear(12, 128),
-            nn.ReLU(),
-            nn.Linear(128, 64),
-            nn.ReLU(),
-            nn.Linear(64, 32),
+        self.value_head = torch.nn.ModuleList ( [nn.Sequential(
+            nn.Linear(12, 128), 
             nn.ReLU(), 
-            nn.Linear(32, 16),
+            nn.Linear(128, 64), 
+            nn.ReLU(), 
+            nn.Linear(64, 32), 
+            nn.ReLU(), 
+            nn.Linear(32, 16), 
             nn.ReLU(),             
             nn.Linear(16, 1)
         ) for i in range(tasks) ] )
@@ -47,14 +46,13 @@ class Single(nn.Module):
 
     def forward(self, x):
         tmp=[]
-        
         for i in range(self.tasks) :
-            tmp.append( F.softmax(self.actor[i](x)-self.actor[i](x).max()))
+            tmp.append( F.softmax(self.actor[i](x) - self.actor[i](x).max()))
         state_values = self.value_head[index](x)
-        return tmp , state_values
+        return tmp, state_values
 
-def select_action(state, tasks,index):
-    state=torch.tensor(list(state)).float()
+def select_action(state, tasks, index):
+    state = torch.tensor(list(state)).float()
     probs, state_value = model(Variable(state))
 
     # Obtain the most probable action for each one of the policies
@@ -63,7 +61,7 @@ def select_action(state, tasks,index):
         model.saved_actions[i].append(SavedAction(probs[i].log().dot(probs[i]), state_value))
     return probs, state_value
 
-def finish_episode( tasks , alpha , beta , gamma ):
+def finish_episode(tasks, alpha, beta, gamma):
 
     ### Calculate loss function according to Equation 1
     R = 0
@@ -107,33 +105,33 @@ for name, env_cls in ml10.train_classes.items():
   env.set_task(task)
   envs.append(env)
   
-file_name="Single"
-batch_size=128
+file_name = "Single"
+batch_size = 128
 alpha = 0.5
 beta = 0.5
-gamma=0.999
-is_plot=False
-num_episodes=500
-max_num_steps_per_episode=10000
-learning_rate=0.001 
+gamma = 0.999
+is_plot = False
+num_episodes = 500
+max_num_steps_per_episode = 10000
+learning_rate = 0.001 
 tasks = len(envs)
-rewardsRec=[[] for _ in range(len(envs))]
+rewardsRec = [[] for _ in range(len(envs))]
 model = Single( )
 optimizer = optim.Adam(model.parameters(), lr=3e-2)
 
 for rnd in range(10000):
-    for index,env in enumerate(envs): 
+    for index, env in enumerate(envs): 
           total_reward = 0
           state = env.reset()
           for t in range(200):  # Don't infinite loop while learning
-              probs, state_value = select_action(state, tasks,index )
+              probs, state_value = select_action(state, tasks, index )
               state, reward, done, _ = env.step(probs[index].detach().numpy())
               model.rewards[index].append(reward)
               total_reward += reward
               if done:
                   break
-          print(rnd,index,total_reward)
+          print(rnd, index, total_reward)
           rewardsRec[index].append(total_reward)
-          finish_episode(tasks , alpha , beta, gamma )
-    np.save('mt10_single_rewardsRec.npy',rewardsRec)
+          finish_episode(tasks, alpha, beta, gamma )
+    np.save('mt10_single_rewardsRec.npy', rewardsRec)
     torch.save(model.state_dict(), 'mt10_single_params.pkl')
