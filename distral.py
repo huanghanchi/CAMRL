@@ -193,7 +193,7 @@ eps = np.finfo(np.float32).eps.item()
 SavedAction = namedtuple('SavedAction', ['log_prob', 'value'])
 test = False
 trained = False 
-args=parser()
+args = parser()
 model = Policy()
 # learning rate - might be useful to change
 optimizer = optim.Adam(model.parameters(), lr=1e-3)
@@ -202,19 +202,19 @@ running_reward = 10
 run_reward = np.array([10 for i in range(num_envs)])
 roll_length = np.array([0 for i in range(num_envs)])
 trained_envs = np.array([False for i in range(num_envs)])
-rewardsRec=[[] for i in range(num_envs)]
+rewardsRec = [[] for i in range(num_envs)]
 for i_episode in range(6000):
     p = np.random.random()
     length = 0
     for index, env in enumerate(envs):
         # Train each environment simultaneously with the distilled policy
         state = env.reset()
-        r=0
+        r = 0
         done = False
         for t in range(200):  # Don't infinite loop while learning
             action = select_action(state, index)
             state, reward, done, _ = env.step(Categorical(action).sample())
-            r+= reward
+            r += reward
             model.rewards[index].append(reward)
             if args.render:
                 env.render()
