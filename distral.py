@@ -5,13 +5,13 @@ import math
 
 class parser:
     def __init__(self):
-        self.gamma=0.99
-        self.alpha=0.9
-        self.beta=.5
-        self.seed=543
-        self.render=False
-        self.log_interval=10
-        self.envs=envs
+        self.gamma = 0.99
+        self.alpha = 0.9
+        self.beta = .5
+        self.seed = 543
+        self.render = False
+        self.log_interval = 10
+        self.envs = envs
         
 def normalized_columns_initializer(weights, std=1.0):
     out = torch.randn(weights.size())
@@ -39,8 +39,6 @@ class Policy(nn.Module):
     def __init__(self):
         super(Policy, self).__init__()
         self.num_envs = num_envs
-        # shared layer
-        # not shared layers
 
         self.mu_heads = nn.ModuleList ( [ nn.Sequential(
             nn.Linear(12, 128),
@@ -53,7 +51,7 @@ class Policy(nn.Module):
             nn.ReLU(),             
             nn.Linear(16,4)
         ) for i in range(self.num_envs+1) ] )
-        self.sigma2_heads =nn.ModuleList ( [ nn.Sequential(
+        self.sigma2_heads = nn.ModuleList ( [ nn.Sequential(
             nn.Linear(12, 128),
             nn.ReLU(),
             nn.Linear(128, 64),
@@ -66,8 +64,6 @@ class Policy(nn.Module):
         ) for i in range(self.num_envs+1) ] )
         self.value_heads = nn.ModuleList([nn.Linear(16, 4) for i in range(self.num_envs)])
         self.apply(weights_init)
-        # +1 for the distilled policy
-        # initialize lists for holding run information
         self.div = [[] for i in range(num_envs)]
         self.saved_actions = [[] for i in range(self.num_envs)]
         #self.entropies = [[] for i in range(num_envs)]
@@ -94,13 +90,13 @@ def select_action(state, index):
                          for
     return - action to take'''
 
-    state=Variable(state)
+    state = Variable(state)
     mu, sigma, value, mu_t, sigma_t = model(state, index)
 
     prob = Normal(args.alpha*mu_t + args.beta*mu, args.alpha*sigma_t.sqrt() + \
                   args.beta*sigma.sqrt())
 
-    entropy = 0.5*(((args.alpha*sigma_t + args.beta*sigma)*2*pi).log()+1)
+    entropy = 0.5*(((args.alpha*sigma_t + args.beta*sigma)*2*pi).log() + 1)
 
 
     new_KL = torch.div(sigma_t.sqrt(),args.alpha*sigma_t.sqrt() + \
@@ -114,7 +110,6 @@ def select_action(state, index):
     model.entropies.append(entropy)
     model.div[index].append(new_KL)
 
-    # model.div[index].append(torch.div(tsigma.sqrt(),sigma.sqrt()).log() + torch.div(sigma+(tmu-mu).pow(2),tsigma*2) - 0.5)
     return prob.loc
 
 def finish_episode():
@@ -138,7 +133,7 @@ def finish_episode():
         if rewards.std() != rewards.std() or len(rewards) == 0:
             rewards = rewards - rewards.mean()
         else:
-            rewards = (rewards - rewards.mean()) / (rewards.std()+1e-3)
+            rewards = (rewards - rewards.mean()) / (rewards.std() + 1e-3)
 
         for i, reward in enumerate(rewards):
             rewards = rewards + args.gamma**i * model.div[index][i].mean()
@@ -149,7 +144,7 @@ def finish_episode():
             reward = r - value[0].dot(log_prob[0].exp()).item()
             # theta
             # need gradient descent - so negative
-            policy_losses.append(-log_prob * reward) #/ length_discount[index])
+            policy_losses.append(-log_prob * reward)
             # https://pytorch.org/docs/master/nn.html#torch.nn.SmoothL1Loss
             # feeds a weird difference between value and the reward
             value_losses.append(F.smooth_l1_loss(value, torch.tensor([r])))
@@ -175,13 +170,7 @@ def finish_episode():
         for i in range(num_envs):
             print(i)
             print(model.mu_heads[i].weight)
-            print('##')
-            #print(model.sigma2_head[i].weight.grad)
-            print('##')
-            #print(model.value_head[i].weight.grad)
-            print('##')
-            #print(model.affine1.weight.grad)
-
+            
     # train the NN
     optimizer.step()
 
@@ -216,7 +205,6 @@ trained_envs = np.array([False for i in range(num_envs)])
 rewardsRec=[[] for i in range(num_envs)]
 for i_episode in range(6000):
     p = np.random.random()
-    # roll = np.random.randint(2)
     length = 0
     for index, env in enumerate(envs):
         # Train each environment simultaneously with the distilled policy
@@ -230,8 +218,8 @@ for i_episode in range(6000):
             model.rewards[index].append(reward)
             if args.render:
                 env.render()
-            if done or t==199:
-                print(i_episode ,index,r)
+            if done or t == 199:
+                print(i_episode, index, r)
                 rewardsRec[index].append(r)
                 length += t
                 roll_length[index] = t
