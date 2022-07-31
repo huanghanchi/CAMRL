@@ -20,14 +20,14 @@ import torch.nn.utils as utils
 from torch.utils.tensorboard import SummaryWriter
 from scipy.stats import rankdata
 from collections import deque
-sys.path.insert(0,r'constopt-pytorch/')
+sys.path.insert(0, r'constopt-pytorch/')
 
 class BaseAgent(ABC):
-    def __init__(self, env, test_env, log_dir, num_steps=100000, batch_size=16,
-                 memory_size=1000000, gamma=0.99, multi_step=1,
-                 target_entropy_ratio=0.98, start_steps=20000,
-                 update_interval=4, target_update_interval=8000,
-                 use_per=False, num_eval_steps=1000, max_episode_steps=27000,
+    def __init__(self, env, test_env, log_dir, num_steps=100000, batch_size=16, 
+                 memory_size=1000000, gamma=0.99, multi_step=1, 
+                 target_entropy_ratio=0.98, start_steps=20000, 
+                 update_interval=4, target_update_interval=8000, 
+                 use_per=False, num_eval_steps=1000, max_episode_steps=27000, 
                  log_interval=10, eval_interval=1000, cuda=True, seed=0):
         
         super().__init__()
@@ -42,21 +42,19 @@ class BaseAgent(ABC):
         # torch.backends.cudnn.deterministic = True  # It harms a performance.
         # torch.backends.cudnn.benchmark = False  # It harms a performance.
 
-        self.device = 'cpu'#torch.device(
-            #"cuda" if cuda and torch.cuda.is_available() else "cpu")
-
+        self.device = 'cpu'
         # LazyMemory efficiently stores FrameStacked states.
         if use_per:
             beta_steps = (num_steps - start_steps) / update_interval
             self.memory = LazyPrioritizedMultiStepMemory(
-                capacity=memory_size,
-                state_shape=self.env.observation_space.shape,
-                device=self.device, gamma=gamma, multi_step=multi_step,
+                capacity=memory_size, 
+                state_shape=self.env.observation_space.shape, 
+                device=self.device, gamma=gamma, multi_step=multi_step, 
                 beta_steps=beta_steps)
         else:
             self.memory = LazyMultiStepMemory(
-                capacity=memory_size,
-                state_shape=self.env.observation_space.shape,
+                capacity=memory_size, 
+                state_shape=self.env.observation_space.shape, 
                 device=self.device, gamma=gamma, multi_step=multi_step)
 
         self.log_dir = log_dir
@@ -86,13 +84,11 @@ class BaseAgent(ABC):
         self.log_interval = log_interval
         self.eval_interval = eval_interval
 
-    def run(self,rnd):
+    def run(self, rnd):
         self.train_episode(rnd)
-        #    if self.steps > self.num_steps:
-         #       break
 
     def is_update(self):
-        return self.steps % self.update_interval == 0            and self.steps >= self.start_steps
+        return self.steps % self.update_interval == 0 and self.steps >= self.start_steps
 
     @abstractmethod
     def explore(self, state):
@@ -126,9 +122,8 @@ class BaseAgent(ABC):
     def calc_entropy_loss(self, entropies, weights):
         pass
 
-    def train_episode(self,rnd):
-        if rnd>0:
-            #save_dir=os.path.join('logs_sac_newatari', str(index), f'{name}-seed{args.seed}-{time}')
+    def train_episode(self, rnd):
+        if rnd > 0:
             self.policy.load_state_dict(torch.load(str(index)+'policysac_newatari.pth'))
             self.online_critic.load_state_dict(torch.load(str(index)+'online_criticsac_newatari.pth'))
             self.target_critic.load_state_dict(torch.load(str(index)+ 'target_criticsac_newatari.pth'))
@@ -140,7 +135,6 @@ class BaseAgent(ABC):
             state = self.env.reset()
 
             while (not done) and episode_steps <= 200-1:
-
                 if self.start_steps > self.steps:
                     action = self.env.action_space.sample()
                     next_state, reward, done, info = self.env.step(action)
@@ -158,21 +152,14 @@ class BaseAgent(ABC):
                 episode_return += reward
                 state = next_state
 
-     #           if self.is_update():
-      #              self.learn()
-
-       #         if self.steps % self.target_update_interval == 0:
-        #            self.update_target()
-
             if (inner_rnd+1)%5 == 0:
-                #self.evaluate()
                 print('save')
                 self.learn(inner_rnd)
                 self.update_target()
                 self.save_models(os.path.join(self.model_dir, 'final'))
             rewardsRec[index].append(episode_return)
-            np.save('sac_newatari_rewardsRec.npy',rewardsRec)
-            np.save('sac_newatari_succeessRec.npy',succeessRec)
+            np.save('sac_newatari_rewardsRec.npy', rewardsRec)
+            np.save('sac_newatari_succeessRec.npy', succeessRec)
             # We log running mean of training rewards.
             self.train_return.append(episode_return)
 
@@ -180,9 +167,9 @@ class BaseAgent(ABC):
                 self.writer.add_scalar(
                     'reward/train', self.train_return.get(), self.steps)
     
-            print('Env: ',index,'rnd: ',rnd,'Episode: ',self.episodes,'Return: ',episode_return)
+            print('Env: ', index, 'rnd: ', rnd, 'Episode: ', self.episodes, 'Return: ', episode_return)
 
-    def learn(self,inner_rnd):
+    def learn(self, inner_rnd):
         assert hasattr(self, 'q1_optim') and hasattr(self, 'q2_optim') and hasattr(self, 'policy_optim') and hasattr(self, 'alpha_optim')
 
         self.learning_steps += 1
@@ -194,14 +181,14 @@ class BaseAgent(ABC):
             # Set priority weights to 1 when we don't use PER.
             weights = 1.
 
-        q1_loss, q2_loss, errors, mean_q1, mean_q2 =             self.calc_critic_loss(batch, weights)
+        q1_loss, q2_loss, errors, mean_q1, mean_q2 = self.calc_critic_loss(batch, weights)
         policy_loss, entropies = self.calc_policy_loss(batch, weights)
         entropy_loss = self.calc_entropy_loss(entropies, weights)
 
-        update_params(self.q1_optim, q1_loss,inner_rnd,True)
-        update_params(self.q2_optim, q2_loss,inner_rnd)
-        update_params(self.policy_optim, policy_loss,inner_rnd)
-        update_params(self.alpha_optim, entropy_loss,inner_rnd)
+        update_params(self.q1_optim, q1_loss, inner_rnd, True)
+        update_params(self.q2_optim, q2_loss, inner_rnd)
+        update_params(self.policy_optim, policy_loss, inner_rnd)
+        update_params(self.alpha_optim, entropy_loss, inner_rnd)
 
         self.alpha = self.log_alpha.exp()
 
@@ -210,26 +197,26 @@ class BaseAgent(ABC):
 
         if self.learning_steps % self.log_interval == 0:
             self.writer.add_scalar(
-                'loss/Q1', q1_loss.detach().item(),
+                'loss/Q1', q1_loss.detach().item(), 
                 self.learning_steps)
             self.writer.add_scalar(
-                'loss/Q2', q2_loss.detach().item(),
+                'loss/Q2', q2_loss.detach().item(), 
                 self.learning_steps)
             self.writer.add_scalar(
-                'loss/policy', policy_loss.detach().item(),
+                'loss/policy', policy_loss.detach().item(), 
                 self.learning_steps)
             self.writer.add_scalar(
-                'loss/alpha', entropy_loss.detach().item(),
+                'loss/alpha', entropy_loss.detach().item(), 
                 self.learning_steps)
             self.writer.add_scalar(
-                'stats/alpha', self.alpha.detach().item(),
+                'stats/alpha', self.alpha.detach().item(), 
                 self.learning_steps)
             self.writer.add_scalar(
                 'stats/mean_Q1', mean_q1, self.learning_steps)
             self.writer.add_scalar(
                 'stats/mean_Q2', mean_q2, self.learning_steps)
             self.writer.add_scalar(
-                'stats/entropy', entropies.detach().mean().item(),
+                'stats/entropy', entropies.detach().mean().item(), 
                 self.learning_steps)
 
     def evaluate(self):
@@ -298,42 +285,41 @@ class BaseNetwork(nn.Module):
 
 class QNetwork(BaseNetwork):
 
-    def __init__(self, num_channels, num_actions, shared=False,
+    def __init__(self, num_channels, num_actions, shared=False, 
                  dueling_net=False):
         super().__init__()
-        self.image_conv =nn.Sequential(nn.Conv2d(3, 1, (5, 5), (5,5)),nn.Conv2d(1, 1, (3, 3), (3,3)))
-        
+        self.image_conv =nn.Sequential(nn.Conv2d(3, 1, (5, 5), (5, 5)), nn.Conv2d(1, 1, (3, 3), (3, 3)))
         
         if not dueling_net:
             self.head = nn.Sequential(
-                nn.Linear(140,128),
-                nn.ReLU(),
-                nn.Linear(128,64),
+                nn.Linear(140, 128), 
+                nn.ReLU(), 
+                nn.Linear(128, 64), 
                 nn.ReLU(),            
-                nn.Linear(64,32),
-                nn.ReLU(),
-                nn.Linear(32,16),
+                nn.Linear(64, 32), 
+                nn.ReLU(), 
+                nn.Linear(32, 16), 
                 nn.ReLU(), 
                 nn.Linear(16, envs[0].action_space.n))
         else:
             self.a_head = nn.Sequential(
-                nn.Linear(140,128),
-                nn.ReLU(),
-                nn.Linear(128,64),
+                nn.Linear(140, 128), 
+                nn.ReLU(), 
+                nn.Linear(128, 64), 
                 nn.ReLU(),            
-                nn.Linear(64,32),
-                nn.ReLU(),
-                nn.Linear(32,16),
+                nn.Linear(64, 32), 
+                nn.ReLU(), 
+                nn.Linear(32, 16), 
                 nn.ReLU(), 
                 nn.Linear(16, envs[0].action_space.n))
             self.v_head = nn.Sequential(
-                nn.Linear(140,128),
-                nn.ReLU(),
-                nn.Linear(128,64),
+                nn.Linear(140, 128), 
+                nn.ReLU(), 
+                nn.Linear(128, 64), 
                 nn.ReLU(),            
-                nn.Linear(64,32),
-                nn.ReLU(),
-                nn.Linear(32,16),
+                nn.Linear(64, 32), 
+                nn.ReLU(), 
+                nn.Linear(32, 16), 
                 nn.ReLU(), 
                 nn.Linear(16, 1))
 
@@ -341,10 +327,10 @@ class QNetwork(BaseNetwork):
         self.dueling_net = dueling_net
 
     def forward(self, states):
-        if len(states.shape)==3:
-          states=states.view([1]+list(states.shape))
+        if len(states.shape) == 3:
+          states = states.view([1] + list(states.shape))
         else:
-          states=states.permute(0,3,1,2)
+          states = states.permute(0, 3, 1, 2)
         new_x = states
         new_x = self.image_conv(new_x)
         states = new_x.reshape(states.shape[0], -1)   
@@ -355,9 +341,8 @@ class QNetwork(BaseNetwork):
             v = self.v_head(states)
             return v + a - a.mean(1, keepdim=True)
 
-
 class TwinnedQNetwork(BaseNetwork):
-    def __init__(self, num_channels, num_actions, shared=False,
+    def __init__(self, num_channels, num_actions, shared=False, 
                  dueling_net=False):
         super().__init__()
         self.Q1 = QNetwork(num_channels, envs[0].action_space.n, shared, dueling_net)
@@ -369,32 +354,31 @@ class TwinnedQNetwork(BaseNetwork):
         return q1, q2
 
 class CateoricalPolicy(BaseNetwork):
-
     def __init__(self, num_channels, num_actions, shared=False):
         super().__init__()
         self.image_conv =nn.Sequential(
-            nn.Conv2d(3, 1, (5, 5), (5,5)),
-            nn.Conv2d(1, 1, (3, 3), (3,3))
+            nn.Conv2d(3, 1, (5, 5), (5, 5)), 
+            nn.Conv2d(1, 1, (3, 3), (3, 3))
         )
                 
         self.head = nn.Sequential(
-            nn.Linear(140,128),
-            nn.ReLU(),
-            nn.Linear(128,64),
+            nn.Linear(140, 128), 
+            nn.ReLU(), 
+            nn.Linear(128, 64), 
             nn.ReLU(),            
-            nn.Linear(64,32),
-            nn.ReLU(),
-            nn.Linear(32,16),
+            nn.Linear(64, 32), 
+            nn.ReLU(), 
+            nn.Linear(32, 16), 
             nn.ReLU(),               
             nn.Linear(16, envs[0].action_space.n))
 
         self.shared = shared
 
     def act(self, states):
-        if len(states.shape)==3:
+        if len(states.shape) == 3:
           states=states.view([1]+list(states.shape))
         else:
-          states=states.permute(0,3,1,2)
+          states=states.permute(0, 3, 1, 2)
         new_x = states
         new_x = self.image_conv(new_x)
         states = new_x.reshape(states.shape[0], -1)          
@@ -402,10 +386,10 @@ class CateoricalPolicy(BaseNetwork):
         return action_logits
 
     def sample(self, states):
-        if len(states.shape)==3:
-          states=states.view([1]+list(states.shape))
+        if len(states.shape) == 3:
+          states=states.view([1] + list(states.shape))
         else:
-          states=states.permute(0,3,1,2)
+          states=states.permute(0, 3, 1, 2)
         new_x = states
         new_x = self.image_conv(new_x)
         states = new_x.reshape(states.shape[0], -1)          
@@ -420,30 +404,29 @@ class CateoricalPolicy(BaseNetwork):
         return actions, action_probs, log_action_probs
 
 class SharedSacdAgent(BaseAgent):
-
-    def __init__(self, env, test_env, log_dir, num_steps=100000, batch_size=16,
-                 lr=0.0003, memory_size=1000000, gamma=0.99, multi_step=1,
-                 target_entropy_ratio=0.98, start_steps=20000,
-                 update_interval=4, target_update_interval=1000,
-                 use_per=False, dueling_net=False, num_eval_steps=1000,
-                 max_episode_steps=27000, log_interval=10, eval_interval=1000,
+    def __init__(self, env, test_env, log_dir, num_steps=100000, batch_size=16, 
+                 lr=0.0003, memory_size=1000000, gamma=0.99, multi_step=1, 
+                 target_entropy_ratio=0.98, start_steps=20000, 
+                 update_interval=4, target_update_interval=1000, 
+                 use_per=False, dueling_net=False, num_eval_steps=1000, 
+                 max_episode_steps=27000, log_interval=10, eval_interval=1000, 
                  cuda=True, seed=0):
         super().__init__(
-            env, test_env, log_dir, num_steps, batch_size, memory_size, gamma,
-            multi_step, target_entropy_ratio, start_steps, update_interval,
-            target_update_interval, use_per, num_eval_steps, max_episode_steps,
+            env, test_env, log_dir, num_steps, batch_size, memory_size, gamma, 
+            multi_step, target_entropy_ratio, start_steps, update_interval, 
+            target_update_interval, use_per, num_eval_steps, max_episode_steps, 
             log_interval, eval_interval, cuda, seed)
 
         # Define networks.
         
         self.policy = CateoricalPolicy(
-            12, 4,
+            12, 4, 
             shared=True).to(self.device)
         self.online_critic = TwinnedQNetwork(
-            12, 4,
+            12, 4, 
             dueling_net=dueling_net, shared=True).to(device=self.device)
         self.target_critic = TwinnedQNetwork(
-            12, 4,
+            12, 4, 
             dueling_net=dueling_net, shared=True).to(device=self.device).eval()
 
         # Copy parameters of the learning network to the target network.
@@ -458,7 +441,7 @@ class SharedSacdAgent(BaseAgent):
         self.q2_optim = Adam(self.online_critic.Q2.parameters(), lr=lr)
 
         # Target entropy is -log(1/|A|) * ratio (= maximum entropy * ratio).
-        self.target_entropy =             -np.log(1.0 / 4) * target_entropy_ratio
+        self.target_entropy = -np.log(1.0 / 4) * target_entropy_ratio
 
         # We optimize log(alpha), instead of alpha.
         self.log_alpha = torch.zeros(1, requires_grad=True, device=self.device)
@@ -520,7 +503,6 @@ class SharedSacdAgent(BaseAgent):
 
     def calc_policy_loss(self, batch, weights):
         states, actions, rewards, next_states, dones = batch
-
         
         # (Log of) probabilities to calculate expectations of Q and entropies.
         _, action_probs, log_action_probs = self.policy.sample(states)
@@ -560,7 +542,6 @@ class SharedSacdAgent(BaseAgent):
         self.target_critic.save(str(index)+'target_criticsac_newatari.pth')
 
 class MultiStepBuff:
-
     def __init__(self, maxlen=3):
         super(MultiStepBuff, self).__init__()
         self.maxlen = int(maxlen)
@@ -599,7 +580,6 @@ class MultiStepBuff:
         return len(self.rewards)
 
 class LazyMemory(dict):
-
     def __init__(self, capacity, state_shape, device):
         super(LazyMemory, self).__init__()
         self.capacity = int(capacity)
@@ -618,7 +598,7 @@ class LazyMemory(dict):
         self._n = 0
         self._p = 0
 
-    def append(self, state, action, reward, next_state, done,
+    def append(self, state, action, reward, next_state, done, 
                episode_done=None):
         self._append(state, action, reward, next_state, done)
 
@@ -669,8 +649,7 @@ class LazyMemory(dict):
         return self._n
 
 class LazyMultiStepMemory(LazyMemory):
-
-    def __init__(self, capacity, state_shape, device, gamma=0.99,
+    def __init__(self, capacity, state_shape, device, gamma=0.99, 
                  multi_step=3):
         super(LazyMultiStepMemory, self).__init__(
             capacity, state_shape, device)
@@ -695,7 +674,7 @@ class LazyMultiStepMemory(LazyMemory):
         else:
             self._append(state, action, reward, next_state, done)
 
-def update_params(optim, loss,inner_rnd, retain_graph=False):
+def update_params(optim, loss, inner_rnd, retain_graph=False):
   optim.zero_grad()
   w=[]
   for key in agents[0].policy.state_dict().keys():
@@ -722,40 +701,39 @@ class RunningMeanStats:
   def get(self):
       return np.mean(self.stats)
 
-def loss(rloss,w,B,mu=0.2,lamb=[0.01,0.01,0.01]):
-    return torch.tensor([1+mu*(np.linalg.norm(B[t],ord=1)-np.linalg.norm(B[t][t],ord=1)) for t in range(len(envs))]).dot(rloss)+lamb[0]*sum([sum([sum([torch.norm(w[i][t]-sum([B.T[t][j]*w[i][j] for j in range(len(envs))]),p=2)**2]) for i in range(2)]) for t in range(len(envs))])
+def loss(rloss, w, B, mu=0.2, lamb=[0.01, 0.01, 0.01]):
+    return torch.tensor([1+mu*(np.linalg.norm(B[t], ord=1)-np.linalg.norm(B[t][t], ord=1)) for t in range(len(envs))]).dot(rloss)+lamb[0]*sum([sum([sum([torch.norm(w[i][t]-sum([B.T[t][j]*w[i][j] for j in range(len(envs))]), p=2)**2]) for i in range(2)]) for t in range(len(envs))])
 
 class parser:
     def __init__(self):
-        
         self.config=os.path.join('metaworld-master/', 'sacd.yaml')
         self.shared=True
         self.env_id='MsPacmanNoFrameskip-v4'
         self.cuda=True
         self.seed=0
         
-args=parser()
+args = parser()
 with open(args.config) as f:
     config = yaml.load(f, Loader=yaml.SafeLoader)
 
 envs=[]
-for env_name in ['YarsRevenge', 'Jamesbond', 'FishingDerby', 'Venture',
-       'DoubleDunk', 'Kangaroo', 'IceHockey', 'ChopperCommand', 'Krull',
-       'Robotank', 'BankHeist', 'RoadRunner', 'Hero', 'Boxing',
-       'Seaquest', 'PrivateEye', 'StarGunner', 'Riverraid',
-       'Zaxxon', 'Tennis', 'BattleZone',
-       'MontezumaRevenge', 'Frostbite', 'Gravitar',
-       'Defender', 'Pitfall', 'Solaris', 'Berzerk',
+for env_name in ['YarsRevenge', 'Jamesbond', 'FishingDerby', 'Venture', 
+       'DoubleDunk', 'Kangaroo', 'IceHockey', 'ChopperCommand', 'Krull', 
+       'Robotank', 'BankHeist', 'RoadRunner', 'Hero', 'Boxing', 
+       'Seaquest', 'PrivateEye', 'StarGunner', 'Riverraid', 
+       'Zaxxon', 'Tennis', 'BattleZone', 
+       'MontezumaRevenge', 'Frostbite', 'Gravitar', 
+       'Defender', 'Pitfall', 'Solaris', 'Berzerk', 
        'Centipede'][:10]:
-    env=gym.make(env_name)  
+    env = gym.make(env_name)  
     envs.append(env)
     
-rloss=[0.0 for i in range(len(envs))]
-rewardsRec=[[] for i in range(len(envs))]
-rewardsRec_nor=[[0] for i in range(len(envs))]
-succeessRec=[[] for i in range(len(envs))]
+rloss = [0.0 for i in range(len(envs))]
+rewardsRec = [[] for i in range(len(envs))]
+rewardsRec_nor = [[0] for i in range(len(envs))]
+succeessRec = [[] for i in range(len(envs))]
 
-agents=[]
+agents = []
 for index in range(len(envs)):
     # Create environments.
     env = envs[index]
@@ -766,16 +744,16 @@ for index in range(len(envs)):
     if args.shared:
         name = 'shared-' + name
     time = datetime.now().strftime("%Y%m%d-%H%M")
-    log_dir =os.path.join('logs_sac_newatari', str(index), f'{name}-seed{args.seed}-{time}')
+    log_dir = os.path.join('logs_sac_newatari', str(index), f'{name}-seed{args.seed}-{time}')
 
     # Create the agent.
     Agent = SacdAgent if not args.shared else SharedSacdAgent
     agent = Agent(
-        env=env, test_env=test_env, log_dir=log_dir, cuda=args.cuda,
+        env=env, test_env=test_env, log_dir=log_dir, cuda=args.cuda, 
         seed=args.seed, **config)
     agents.append(agent)
 
 for i_episode in range(10000):
     for index in range(len(envs)):
-        rnd=i_episode
+        rnd = i_episode
         agents[index].run(rnd)
