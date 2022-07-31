@@ -33,13 +33,10 @@ def pc_grad_update(gradient_list):
   '''
 
   assert type(gradient_list) is list
-  assert len(gradient_list) != 0
+  assert len(gradient_list) ! =  0
   num_tasks = len(gradient_list)
   num_params = len(gradient_list[0])
   np.random.shuffle(gradient_list)
-  # gradient_list = torch.stack(gradient_list)
-
-  # grad_dims = []
 
   def flatten_and_store_dims(grad_task):
     output = []
@@ -47,18 +44,14 @@ def pc_grad_update(gradient_list):
     for param_grad in grad_task: # TODO(speedup): convert to map since they are faster
       grad_dim.append(tuple(param_grad.shape))
       output.append(torch.flatten(param_grad))
-
-    # grad_dims.append(grad_dim)
-
+      
     return torch.cat(output), grad_dim
-
-  # gradient_list = list(map(flatten_and_store_dims, gradient_list))
 
   def restore_dims(grad_task, chunk_dims):
     ## chunk_dims is a list of tensor shapes
     chunk_sizes = [reduce(mul, dims, 1) for dims in chunk_dims]
     
-    grad_chunk = torch.split(grad_task, split_size_or_sections=chunk_sizes)
+    grad_chunk = torch.split(grad_task, split_size_or_sections = chunk_sizes)
     resized_chunks = []
     for index, grad in enumerate(grad_chunk): # TODO(speedup): convert to map since they are faster
       grad = torch.reshape(grad, chunk_dims[index])
@@ -107,24 +100,24 @@ class ACModel(nn.Module):
         super(ACModel, self).__init__()
 
         self.actor = torch.nn.ModuleList ( [ nn.Sequential(
-            nn.Linear(12, 128),
-            nn.ReLU(),
-            nn.Linear(128, 64),
-            nn.ReLU(),
-            nn.Linear(64, 32),
+            nn.Linear(12, 128), 
             nn.ReLU(), 
-            nn.Linear(32, 16),
+            nn.Linear(128, 64), 
+            nn.ReLU(), 
+            nn.Linear(64, 32), 
+            nn.ReLU(), 
+            nn.Linear(32, 16), 
             nn.ReLU(),             
-            nn.Linear(16,4)
+            nn.Linear(16, 4)
         ) for i in range(1) ] )
         self.value_head =  torch.nn.ModuleList ( [nn.Sequential(
-            nn.Linear(12, 128),
-            nn.ReLU(),
-            nn.Linear(128, 64),
-            nn.ReLU(),
-            nn.Linear(64, 32),
+            nn.Linear(12, 128), 
             nn.ReLU(), 
-            nn.Linear(32, 16),
+            nn.Linear(128, 64), 
+            nn.ReLU(), 
+            nn.Linear(64, 32), 
+            nn.ReLU(), 
+            nn.Linear(32, 16), 
             nn.ReLU(),             
             nn.Linear(16, 1)
         ) for i in range(1) ] )
@@ -134,22 +127,22 @@ class ACModel(nn.Module):
         self.tasks = 1 
 
     def forward(self, x):
-        tmp=[]
+        tmp = []
         for i in range(1) :
             tmp.append( F.softmax(self.actor[i](x)-self.actor[i](x).max()))
         state_values = self.value_head[0](x)
-        return tmp , state_values
+        return tmp, state_values
         
 class REINFORCE:
     def __init__(self):
         self.model = ACModel()
-        self.optimizer = optim.Adam(self.model.parameters(), lr=1e-3)
+        self.optimizer = optim.Adam(self.model.parameters(), lr = 1e-3)
         self.model.train()
-        self.saved_actions=[[]]
-        self.rewards=[[]]
+        self.saved_actions = [[]]
+        self.rewards = [[]]
 
     def select_action(self, state):
-        state=torch.tensor(list(state)).float()
+        state = torch.tensor(list(state)).float()
         probs, state_value = self.model(Variable(state))
 
         # Obtain the most probable action for each one of the policies
@@ -158,8 +151,7 @@ class REINFORCE:
 
         return probs, state_value
 
-
-    def update_parameters(self, rewards, log_probs, entropies, gamma,multitask=False):# 更新参数
+    def update_parameters(self, rewards, log_probs, entropies, gamma, multitask = False):# 更新参数
         R = torch.zeros(1, 1)
         loss = 0
         for i in reversed(range(len(rewards))):
@@ -168,18 +160,17 @@ class REINFORCE:
             loss = loss - (log_probs[i]*(Variable(R).expand_as(log_probs[i]))).sum() - (0.0001*entropies[i]).sum()
         loss = loss / len(rewards)
         if multitask:
-            loss+=lossw2(currindex,env_id,loss,w,B)
+            loss += lossw2(currindex, env_id, loss, w, B)
         self.optimizer.zero_grad()
         loss.backward()
-        utils.clip_grad_norm_(self.model.parameters(), 40)             # 梯度裁剪，梯度的最大L2范数=40
+        utils.clip_grad_norm_(self.model.parameters(), 40)             # 梯度裁剪，梯度的最大L2范数 = 40
         self.optimizer.step()
 
-def finish_episode( tasks , alpha , beta , gamma):
-    optimizer =[ optim.Adam(agents[i].model.parameters(), lr=3e-2) for i in range(len(envs))]
-    losses=[]
-    grad_list=[]
+def finish_episode( tasks, alpha, beta, gamma):
+    optimizer  = [ optim.Adam(agents[i].model.parameters(), lr = 3e-2) for i in range(len(envs))]
+    losses = []
+    grad_list = []
     for env_id in range(len(envs)):
-        
         ### Calculate loss function according to Equation 1
         R = 0
         saved_actions = agents[env_id].saved_actions[0]
@@ -203,26 +194,26 @@ def finish_episode( tasks , alpha , beta , gamma):
         loss = torch.stack(policy_losses).sum() + torch.stack(value_losses).sum()
         loss.backward()
         optimizer[env_id].step()
+        
         for i in range(1):
             del agents[env_id].rewards[i][:]
             del agents[env_id].saved_actions[0][:]
-        if rnd!=0:
-            tmp=[]
+        if rnd! = 0:
+            tmp = []
             for p in agents[env_id].model.parameters():
               # Simulate 5 different tasks
               tmp.append(p.grad)
             grad_list.append(tmp)
 
-    if rnd!=0:
+    if rnd = 0:
         pc_grad_update(grad_list)
-    #Clean memory
     
 ml10 = metaworld.MT10() # Construct the benchmark, sampling tasks
 envs = []
 for name, env_cls in ml10.train_classes.items():
   env = env_cls()
   task = random.choice([task for task in ml10.train_tasks
-                        if task.env_name  ==   name])
+                        if task.env_name   ==    name])
   env.set_task(task)
   envs.append(env)
 
@@ -231,39 +222,39 @@ for env in envs:
   a = env.action_space.sample()  # Sample an action
   obs, reward, done, info = env.step(a)  # Step the environoment with the sampled random action      
 
-rnd=0
-batch_size=128
+rnd = 0
+batch_size = 128
 alpha = 0.5
 beta = 0.5
-gamma=0.999
-is_plot=False
-num_episodes=500
-max_num_steps_per_episode=10000
-learning_rate=0.001 
-rewardsRec=[[] for _ in range(len(envs))]
-tasks=len(envs)
+gamma = 0.999
+is_plot = False
+num_episodes = 500
+max_num_steps_per_episode = 10000
+learning_rate = 0.001 
+rewardsRec = [[] for _ in range(len(envs))]
+tasks = len(envs)
 agents = [REINFORCE() for i in range(len(envs))]
-optimizer =[ optim.Adam(agents[i].model.parameters(), lr=3e-2) for i in range(len(envs))]
+optimizer  = [ optim.Adam(agents[i].model.parameters(), lr = 3e-2) for i in range(len(envs))]
 
 for rnd in range(10000):
     for env_id in range(len(envs)):
-        rewardRec=[]
+        rewardRec = []
         for i_episode in range(1):
-            visualise=True
-            rewardcnt=0
-            observations= envs[env_id].reset() 
+            visualise = True
+            rewardcnt = 0
+            observations =  envs[env_id].reset() 
             for t in range(200):
-                probs, state_value =agents[env_id].select_action(observations)
-                observations,reward, done, _ = envs[env_id].step(probs[0].detach().numpy())
+                probs, state_value  = agents[env_id].select_action(observations)
+                observations, reward, done, _ = envs[env_id].step(probs[0].detach().numpy())
                 agents[env_id].rewards[0].append(reward)
-                rewardcnt+=reward
+                rewardcnt + =  reward
                 if done:
                     break
             rewardRec.append(rewardcnt)
             rewardsRec[env_id].append(rewardcnt)
-            np.save('rewardsRec2_gradsur_meta.npy',rewardsRec)
-            print(rnd,env_id,rewardcnt)
+            np.save('rewardsRec2_gradsur_meta.npy', rewardsRec)
+            print(rnd, env_id, rewardcnt)
             
-    finish_episode( tasks , alpha , beta, gamma )
+    finish_episode( tasks, alpha, beta, gamma )
     for env_id in range(len(envs)):
-        torch.save(agents[env_id].model.state_dict(),str(env_id)+'meta10.pkl')   # 只保存网络中的参数 (速度快, 占内存少)
+        torch.save(agents[env_id].model.state_dict(), str(env_id)+'meta10.pkl')   # 只保存网络中的参数 (速度快, 占内存少)
