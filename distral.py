@@ -6,7 +6,7 @@ import math
 class parser:
     def __init__(self):
         self.gamma = 0.99
-        self.alpha = 0.9
+        self.alpha = 0.5
         self.beta = .5
         self.seed = 543
         self.render = False
