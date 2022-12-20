@@ -739,25 +739,27 @@ for index in range(len(envs)):
         )
     agents.append(agent)     
 
+# If we do not save prior information in advance, we could delete priors and term2.
+priors = np.load('priors.npy')
 # differentiable ranking loss
 def pss(x,points):
     def pss0(x,i):
         return torch.tanh(200*torch.tensor(x-i))/2+0.5
     return len(points)-sum([pss0(x,i) for i in points])
 
-def losst(currindex, t, rloss, w, B, mu = 0.2, lamb = [0.01, 0.01, 0.01], U = [13], pi = list(range(len(envs)))):
-    new_rloss = [i for i in rloss]
-    new_rloss[t] = new_rloss[t] + 1
-    rlossRank = 1 + len(envs) - rankdata(new_rloss, method = 'min')
-    points = B[t]
-    sim = [sum(nn.CosineSimilarity()(pfs[t].state_dict()['last.weight'].view(-1, 1), pfs[i].state_dict()['last.weight'].view(-1, 1))) for i in range(len(envs))] 
-    sim[t] = sim[t] + 100
-    rlossRank_renew = 1 + len(envs) - rankdata(sim, method = 'min')
-    term0 = (1 + mu*sum([torch.norm(torch.tensor(B[t][i]), p = 1)for i in set(list(range(len(envs))))-set([t])]))*rloss[t]
-    term1 = sum([sum([sum([torch.norm(w[i][s]-sum([B[pi[j]][s]*w[i][pi[j]] for j in range(currindex-1)])-B[t][s]*w[i][t],p=2)**2]) for i in range(len(pfs[0].state_dict().keys()))]) for s in U])
-    term2 = torch.norm(torch.tensor(priors[current])-torch.tensor([pss(torch.tensor(i-0.01),points) for i in points]))**2
-    term3 = torch.norm(torch.tensor(rlossRank)-torch.tensor([pss(torch.tensor(i-0.01),points) for i in points]))**2
-    term4 = torch.norm(torch.tensor(rlossRank2)-torch.tensor([pss(torch.tensor(i-0.01),points) for i in points]))**2
+def losst(currindex,t,rloss,w,B,mu=0.2,lamb=[0.01,0.01,0.01],U=[13],pi=list(range(len(envs)))):
+    new_rloss=[i for i in rloss]
+    new_rloss[t]=new_rloss[t]+1
+    rlossRank=1+len(envs)-rankdata(new_rloss, method='min')
+    points=B[t]
+    sim=[sum(nn.CosineSimilarity()(pfs[t].state_dict()['last.weight'].view(-1,1),pfs[i].state_dict()['last.weight'].view(-1,1))) for i in range(len(envs))] 
+    sim[t]=sim[t]+100
+    rlossRank2=1+len(envs)-rankdata(sim, method='min')
+    term0=(1+mu*sum([torch.norm(torch.tensor(B[t][i]),p=1)for i in set(list(range(len(envs))))-set([t])]))*rloss[t]
+    term1=sum([sum([sum([torch.norm(w[i][s]-sum([B[pi[j]][s]*w[i][pi[j]] for j in range(currindex-1)])-B[t][s]*w[i][t],p=2)**2]) for i in range(len(pfs[0].state_dict().keys()))]) for s in U])
+    term2=torch.norm(torch.tensor(priors[current])-torch.tensor([pss(torch.tensor(i-0.01),points) for i in points]))**2
+    term3=torch.norm(torch.tensor(rlossRank)-torch.tensor([pss(torch.tensor(i-0.01),points) for i in points]))**2
+    term4=torch.norm(torch.tensor(rlossRank2)-torch.tensor([pss(torch.tensor(i-0.01),points) for i in points]))**2
     terms_history[0].append(term0.detach().numpy())
     terms_history[1].append(term1)
     terms_history[2].append(term2.detach().numpy())
@@ -766,44 +768,45 @@ def losst(currindex, t, rloss, w, B, mu = 0.2, lamb = [0.01, 0.01, 0.01], U = [1
     if len(terms_history[0])<=1:
         return term0+term1+term2+term3+term4
     else:
-        return (1/(np.array(terms_history[0]).std())**2)*term0+(1/(np.array(terms_history[1]).std())**2)*term1+(1/(np.array(terms_history[2]).std())**2)*term2+(1/(np.array(terms_history[3]).std())**2)*term3+(1/(np.array(terms_history[4]).std())**2)*term4+np.log((np.array(terms_history[0]).std())*(np.array(terms_history[1]).std())*(np.array(terms_history[2]).std())*(np.array(terms_history[3]).std())*(np.array(terms_history[4]).std()))
+        return (1/(np.array(terms_history[0]).std())**2)*term0+(1/(np.array(terms_history[1]).std())**2)*term1+(1/(np.array(terms_history[3]).std())**2)*term3+(1/(np.array(terms_history[4]).std())**2)*term4+np.log((np.array(terms_history[0]).std())*(np.array(terms_history[1]).std())*(np.array(terms_history[2]).std())*(np.array(terms_history[3]).std())*(np.array(terms_history[4]).std()))
 
-def lossb(currindex, t, rloss, w, B, mu = 0.2, lamb = [0.01, 0.01, 0.01], U = [13], pi = list(range(len(envs)))):
-    new_rloss = [i for i in rloss]
-    new_rloss[t] = new_rloss[t] + 1
-    rlossRank = 1 + len(envs) - rankdata(new_rloss, method = 'min')
-    points = B[t]
-    sim = [sum(nn.CosineSimilarity()(pfs[t].state_dict()['last.weight'].view(-1, 1), pfs[i].state_dict()['last.weight'].view(-1, 1))) for i in range(len(envs))] 
-    sim[t] = sim[t] + 100
-    rlossRank_renew = 1 + len(envs) - rankdata(sim, method = 'min')
-    term0 = (1 + mu*sum([torch.norm(B[t][i], p = 1)for i in set(list(range(len(envs))))-set([t])]))*rloss[t]
-    term1 = sum([sum([sum([torch.norm(w[i][s]-sum([B[pi[j]][s]*w[i][pi[j]] for j in range(currindex-1)])-B[t][s]*w[i][t],p=2)**2]) for i in range(len(pfs[0].state_dict().keys()))]) for s in U])
-    term2 = torch.norm(torch.tensor(priors[current])-torch.tensor([pss(torch.tensor(i-0.01),points) for i in points]))**2
-    term3 = torch.norm(torch.tensor(rlossRank)-torch.tensor([pss(torch.tensor(i-0.01),points) for i in points]))**2
-    term4 = torch.norm(torch.tensor(rlossRank2)-torch.tensor([pss(torch.tensor(i-0.01),points) for i in points]))**2
+def lossb(currindex,t,rloss,w,B,mu=0.2,lamb=[0.01,0.01,0.01],U=[13],pi=list(range(len(envs)))):
+    new_rloss=[i for i in rloss]
+    new_rloss[t]=new_rloss[t]+1
+    rlossRank=1+len(envs)-rankdata(new_rloss, method='min')
+    points=B[t]
+    sim=[sum(nn.CosineSimilarity()(pfs[t].state_dict()['last.weight'].view(-1,1),pfs[i].state_dict()['last.weight'].view(-1,1))) for i in range(len(envs))] 
+    sim[t]=sim[t]+100
+    rlossRank2=1+len(envs)-rankdata(sim, method='min')
+    term0=(1+mu*sum([torch.norm(B[t][i],p=1)for i in set(list(range(len(envs))))-set([t])]))*rloss[t]
+    term1=sum([sum([sum([torch.norm(w[i][s]-sum([B[pi[j]][s]*w[i][pi[j]] for j in range(currindex-1)])-B[t][s]*w[i][t],p=2)**2]) for i in range(len(pfs[0].state_dict().keys()))]) for s in U])
+    term2=torch.norm(torch.tensor(priors[current])-torch.tensor([pss(torch.tensor(i-0.01),points) for i in points]))**2
+    term3=torch.norm(torch.tensor(rlossRank)-torch.tensor([pss(torch.tensor(i-0.01),points) for i in points]))**2
+    term4=torch.norm(torch.tensor(rlossRank2)-torch.tensor([pss(torch.tensor(i-0.01),points) for i in points]))**2
+
     if len(terms_history[0])<=1:
         return term0+term1+term2+term3+term4
     else:
-        return (1/(np.array(terms_history[0]).std())**2)*term0+(1/(np.array(terms_history[1]).std())**2)*term1+(1/(np.array(terms_history[2]).std())**2)*term2+(1/(np.array(terms_history[3]).std())**2)*term3+(1/(np.array(terms_history[4]).std())**2)*term4+np.log((np.array(terms_history[0]).std())*(np.array(terms_history[1]).std())*(np.array(terms_history[2]).std())*(np.array(terms_history[3]).std())*(np.array(terms_history[4]).std()))
+        return (1/(np.array(terms_history[0]).std())**2)*term0+(1/(np.array(terms_history[1]).std())**2)*term1+(1/(np.array(terms_history[3]).std())**2)*term3+(1/(np.array(terms_history[4]).std())**2)*term4+np.log((np.array(terms_history[0]).std())*(np.array(terms_history[1]).std())*(np.array(terms_history[2]).std())*(np.array(terms_history[3]).std())*(np.array(terms_history[4]).std()))
 
-def lossw(currindex, t, rloss, w, B, mu = 0.2, lamb = [0.01, 0.01, 0.01], U = [13], pi = list(range(len(envs)))):
-    new_rloss = [i for i in rloss]
-    new_rloss[t] = new_rloss[t] + 1
-    rlossRank = 1 + len(envs) - rankdata(new_rloss, method = 'min')
-    points = B[t]
-    term0 = (1 + mu*sum([torch.norm(torch.tensor(B[t][i]), p=1)for i in set(list(range(len(envs))))-set([t])]))*rloss[t]
-    sim = [sum(nn.CosineSimilarity()(pfs[t].state_dict()['last.weight'].view(-1, 1), pfs[i].state_dict()['last.weight'].view(-1, 1))) for i in range(len(envs))] 
-    sim[t] = sim[t] + 100
-    rlossRank_renew = 1 + len(envs) - rankdata(sim, method = 'min')
+def lossw(currindex,t,rloss,w,B,mu=0.2,lamb=[0.01,0.01,0.01],U=[13],pi=list(range(len(envs)))):
+    new_rloss=[i for i in rloss]
+    new_rloss[t]=new_rloss[t]+1
+    rlossRank=1+len(envs)-rankdata(new_rloss, method='min')
+    points=B[t]
+    term0=(1+mu*sum([torch.norm(torch.tensor(B[t][i]),p=1)for i in set(list(range(len(envs))))-set([t])]))*rloss[t]
+    sim=[sum(nn.CosineSimilarity()(pfs[t].state_dict()['last.weight'].view(-1,1),pfs[i].state_dict()['last.weight'].view(-1,1))) for i in range(len(envs))] 
+    sim[t]=sim[t]+100
+    rlossRank2=1+len(envs)-rankdata(sim, method='min')
 
-    term1 = sum([sum([torch.norm(w[i][t]-sum([B[pi[j]][t]*w[i][pi[j]] for j in range(currindex-1)]),p=2)**2]) for i in range(len(pfs[0].state_dict().keys()))])
-    term2 = torch.norm(torch.tensor(priors[current])-torch.tensor([pss(torch.tensor(i-0.01),points) for i in points]))**2
-    term3 = torch.norm(torch.tensor(rlossRank)-torch.tensor([pss(torch.tensor(i-0.01),points) for i in points]))**2
-    term4 = torch.norm(torch.tensor(rlossRank2)-torch.tensor([pss(torch.tensor(i-0.01),points) for i in points]))**2
+    term1=sum([sum([torch.norm(w[i][t]-sum([B[pi[j]][t]*w[i][pi[j]] for j in range(currindex-1)]),p=2)**2]) for i in range(len(pfs[0].state_dict().keys()))])
+    term2=torch.norm(torch.tensor(priors[current])-torch.tensor([pss(torch.tensor(i-0.01),points) for i in points]))**2
+    term3=torch.norm(torch.tensor(rlossRank)-torch.tensor([pss(torch.tensor(i-0.01),points) for i in points]))**2
+    term4=torch.norm(torch.tensor(rlossRank2)-torch.tensor([pss(torch.tensor(i-0.01),points) for i in points]))**2
     if len(terms_history[0])<=1:
-        return term0+term1+term3+term4
+        return term0+term1+term2+term3+term4
     else:
-        return (1/(np.array(terms_history[0]).std())**2)*term0+(1/(np.array(terms_history[1]).std())**2)*term1+(1/(np.array(terms_history[2]).std())**2)*term2+(1/(np.array(terms_history[3]).std())**2)*term3+(1/(np.array(terms_history[4]).std())**2)*term4+np.log((np.array(terms_history[0]).std())*(np.array(terms_history[1]).std())*(np.array(terms_history[2]).std())*(np.array(terms_history[3]).std())*(np.array(terms_history[4]).std()))
+        return (1/(np.array(terms_history[0]).std())**2)*term0+(1/(np.array(terms_history[1]).std())**2)*term1+(1/(np.array(terms_history[3]).std())**2)*term3+(1/(np.array(terms_history[4]).std())**2)*term4+np.log((np.array(terms_history[0]).std())*(np.array(terms_history[1]).std())*(np.array(terms_history[2]).std())*(np.array(terms_history[3]).std())*(np.array(terms_history[4]).std()))
 
 #FrankWolfe
 OPTIMIZER_CLASSES = [FrankWolfe]# [PGD, PGDMadry, FrankWolfe, MomentumFrankWolfe]
