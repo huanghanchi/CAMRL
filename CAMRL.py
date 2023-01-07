@@ -96,7 +96,7 @@ class Normalizer():
             return
         if len(data.shape) == self.shape:
             data = data[np.newaxis, :]
-        self._mean, self._var, self._count = update_mean_var_count(
+        self._mean, self._var, self._count = update_mean_var_count_moments(
             self._mean, self._var, self._count,
             np.mean(data, axis=0), np.var(data, axis=0), data.shape[0])
 
